@@ -10,6 +10,10 @@ Adres: https://zbigniew-svg.github.io/spizarnia/
 - **Zakupy** - składniki z planu minus to, co jest w domu, plus pozycje dopisane ręcznie.
   „Kupione: do spiżarni” przenosi odhaczone produkty do zapasów. „Wyślij listę” udostępnia ją jako tekst.
 - **Spiżarnia** - produkty w domu z ilością, terminem i oznaczeniem „otwarte”, oraz propozycje dań na resztki.
+- **Ze zdjęcia** (w Spiżarni) - zdjęcie lodówki albo szafki (do 4 naraz) ustawia stan widocznych produktów,
+  zdjęcie paragonu dodaje kupione produkty. Rozpoznaje Google Gemini; przed zapisem wynik można poprawić.
+  Klucz API i model ustawia się w Ustawieniach; klucz zostaje w telefonie (localStorage `spizarnia-gemini-klucz`)
+  i nie trafia do kopii danych ani do repozytorium. Domyślny model: `gemini-flash-latest`.
 - **Przepisy** - baza dań. Ilości składników są podane na 1 osobę i mnożone przez liczbę osób z ustawień.
 
 ## Pliki

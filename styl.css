@@ -105,7 +105,7 @@ body {
 
 select, input, textarea, button { font: inherit; }
 
-select, input[type=text], input[type=number], input[type=date], textarea {
+select, input[type=text], input[type=password], input[type=number], input[type=date], textarea {
   width: 100%;
   padding: 8px 10px;
   border: 1px solid var(--linia);
@@ -188,4 +188,16 @@ label.pole > span { display: block; font-size: 13px; color: var(--szary); margin
 .filtry button.aktywna { background: var(--zielony); color: #fff; border-color: var(--zielony); }
 
 .przepis-wiersz { cursor: pointer; }
+
+.przeglad-wiersz {
+  display: grid;
+  grid-template-columns: 26px 1fr 74px 66px;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 0;
+  border-top: 1px solid var(--linia);
+}
+
+.przeglad-wiersz input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--zielony); }
+.przeglad-wiersz input, .przeglad-wiersz select { padding: 6px 8px; }
 .zrodlo { font-size: 12px; color: var(--szary); }

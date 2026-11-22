@@ -16,6 +16,15 @@ let stan = null;
 let widok = 'plan';
 let filtrPrzepisow = '';
 let edytowanyPrzepis = null;  // id przepisu w edycji, 'nowy' albo null
+let przeglad = null;          // wynik rozpoznania zdjęcia czekający na zatwierdzenie: { tryb, pozycje }
+let rozpoznawanie = false;    // trwa wysyłka zdjęcia do Gemini
+let trybZdjecia = 'lodowka';  // lodowka albo paragon
+
+// Klucz API trzymamy osobno od danych, żeby nie trafiał do kopii i do innych telefonów.
+const KLUCZ_AI = 'spizarnia-gemini-klucz';
+const KLUCZ_MODEL = 'spizarnia-gemini-model';
+const MODEL_DOMYSLNY = 'gemini-flash-latest';
+const API_GEMINI = 'https://generativelanguage.googleapis.com/v1beta/models/';
 
 // ---------- narzędzia ----------
 
@@ -254,6 +263,126 @@ function kupione() {
   pokaz(lista.length ? `Przeniesiono do spiżarni: ${lista.length}.` : 'Najpierw odhacz kupione produkty.');
 }
 
+// ---------- rozpoznawanie zdjęć (Gemini) ----------
+
+// Zdjęcie z telefonu ma kilka MB; zmniejszamy je do JPEG z dłuższym bokiem 1600 px.
+function zmniejszZdjecie(plik, bok = 1600) {
+  return new Promise((ok, blad) => {
+    const url = URL.createObjectURL(plik);
+    const img = new Image();
+    img.onload = () => {
+      const skala = Math.min(1, bok / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * skala);
+      c.height = Math.round(img.height * skala);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      ok(c.toDataURL('image/jpeg', 0.82).split(',')[1]);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); blad(new Error('nie udało się odczytać zdjęcia')); };
+    img.src = url;
+  });
+}
+
+function znaneNazwy() {
+  const s = new Set();
+  for (const r of stan.przepisy) for (const x of r.skladniki) s.add(norm(x.n));
+  for (const z of stan.zapasy) s.add(norm(z.n));
+  return [...s];
+}
+
+function polecenie(tryb) {
+  const wspolne = 'Odpowiadaj po polsku. Nazwy produktów pisz małymi literami, w liczbie mnogiej tam, gdzie to naturalne (np. "jajka", "pomidory"). '
+    + `Jeśli produkt pasuje do jednej z tych nazw, użyj dokładnie jej: ${znaneNazwy().join(', ')}. `
+    + 'Jednostki: "g" dla produktów na wagę, "ml" dla płynów, "szt" dla sztuk (jajka, owoce i warzywa liczone na sztuki, opakowania bez znanej wagi). '
+    + 'Pomijaj produkty, których nie da się rozpoznać.';
+  if (tryb === 'paragon') {
+    return 'Na zdjęciu jest paragon ze sklepu. Wypisz kupione produkty spożywcze z ilościami. '
+      + 'Rozwiń skróty z paragonu do zwykłych nazw (np. "MLEKO UHT 3,2% 1L" to "mleko", 1000 ml). '
+      + 'Pomiń kaucje, torby, rabaty i artykuły niespożywcze. ' + wspolne;
+  }
+  return 'Na zdjęciach jest wnętrze lodówki, szafki albo spiżarni. Wypisz widoczne produkty spożywcze i oszacuj, ile ich zostało '
+    + '(np. napoczęty karton mleka około 500 ml, pół kostki masła 100 g). Pole "otwarte" ustaw na true, gdy opakowanie jest wyraźnie napoczęte. ' + wspolne;
+}
+
+const SCHEMAT_ODPOWIEDZI = {
+  type: 'OBJECT',
+  properties: {
+    produkty: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          nazwa: { type: 'STRING' },
+          ilosc: { type: 'NUMBER' },
+          jednostka: { type: 'STRING', enum: ['g', 'ml', 'szt'] },
+          otwarte: { type: 'BOOLEAN' }
+        },
+        required: ['nazwa', 'ilosc', 'jednostka']
+      }
+    }
+  },
+  required: ['produkty']
+};
+
+async function rozpoznaj(pliki, tryb) {
+  const klucz = localStorage.getItem(KLUCZ_AI);
+  if (!klucz) { widok = 'wiecej'; pokaz('Najpierw wpisz klucz Gemini w ustawieniach.'); return; }
+  rozpoznawanie = true;
+  rysuj();
+  try {
+    const zdjecia = await Promise.all([...pliki].slice(0, 4).map(p => zmniejszZdjecie(p)));
+    const model = localStorage.getItem(KLUCZ_MODEL) || MODEL_DOMYSLNY;
+    const odp = await fetch(API_GEMINI + encodeURIComponent(model) + ':generateContent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': klucz },
+      body: JSON.stringify({
+        contents: [{ parts: [...zdjecia.map(d => ({ inline_data: { mime_type: 'image/jpeg', data: d } })), { text: polecenie(tryb) }] }],
+        generationConfig: { responseMimeType: 'application/json', responseSchema: SCHEMAT_ODPOWIEDZI, temperature: 0.2 }
+      })
+    });
+    const dane = await odp.json();
+    if (!odp.ok) throw new Error(dane.error?.message || `HTTP ${odp.status}`);
+    const tekst = (dane.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('');
+    const wynik = JSON.parse(tekst || '{}');
+    const pozycje = (wynik.produkty || []).filter(p => p.nazwa).map(p => ({
+      id: uid(),
+      wybrana: true,
+      n: norm(p.nazwa),
+      ilosc: Math.max(0, Math.round((+p.ilosc || 0) * 10) / 10),
+      j: ['g', 'ml', 'szt'].includes(p.jednostka) ? p.jednostka : 'szt',
+      otwarte: !!p.otwarte
+    }));
+    if (!pozycje.length) throw new Error('na zdjęciu nie rozpoznano żadnych produktów');
+    przeglad = { tryb, pozycje };
+    widok = 'spizarnia';
+  } catch (e) {
+    komunikat = 'Rozpoznanie się nie udało: ' + e.message;
+  } finally {
+    rozpoznawanie = false;
+    rysuj();
+    window.scrollTo(0, 0);
+  }
+}
+
+function zatwierdzPrzeglad() {
+  const wybrane = przeglad.pozycje.filter(p => p.wybrana && p.n);
+  for (const p of wybrane) {
+    if (przeglad.tryb === 'lodowka') {
+      // Zdjęcie pokazuje aktualny stan, więc zastępujemy ilość tego produktu. Najbliższy termin zostaje.
+      const stare = stan.zapasy.filter(z => norm(z.n) === p.n && z.j === p.j);
+      const termin = stare.map(z => z.termin).filter(Boolean).sort()[0] || '';
+      stan.zapasy = stan.zapasy.filter(z => !stare.includes(z));
+      if (p.ilosc > 0) stan.zapasy.push({ id: uid(), n: p.n, ilosc: p.ilosc, j: p.j, termin, otwarte: p.otwarte });
+    } else {
+      dodajZapas(p.n, p.ilosc, p.j);
+    }
+  }
+  przeglad = null;
+  zapisz();
+  pokaz(`Spiżarnia zaktualizowana: ${wybrane.length} produktów. Lista zakupów jest przeliczona.`);
+}
+
 // ---------- komunikaty ----------
 
 let komunikat = '';
@@ -348,8 +477,37 @@ function znacznikTerminu(z) {
   return h;
 }
 
+function widokPrzegladu() {
+  const lodowka = przeglad.tryb === 'lodowka';
+  let h = `<section class="karta"><h2>${lodowka ? 'Rozpoznane w lodówce' : 'Rozpoznane na paragonie'}</h2>
+    <p class="podpowiedz" style="margin-top:0">${lodowka
+      ? 'Popraw nazwy i ilości, odznacz pomyłki. Ilości zastąpią obecny stan tych produktów w spiżarni. Produktów, których nie widać na zdjęciu, nie ruszam.'
+      : 'Popraw nazwy i ilości, odznacz pomyłki. Zaznaczone produkty zostaną dodane do spiżarni.'}</p>`;
+  for (const p of przeglad.pozycje) {
+    h += `<div class="przeglad-wiersz">
+      <input type="checkbox" data-akcja="przeglad" data-pole="wybrana" data-id="${p.id}" ${p.wybrana ? 'checked' : ''}>
+      <input type="text" data-akcja="przeglad" data-pole="n" data-id="${p.id}" value="${esc(p.n)}" list="produkty">
+      <input type="number" min="0" step="any" data-akcja="przeglad" data-pole="ilosc" data-id="${p.id}" value="${p.ilosc}">
+      <select data-akcja="przeglad" data-pole="j" data-id="${p.id}">${['g', 'ml', 'szt'].map(j => `<option ${p.j === j ? 'selected' : ''}>${j}</option>`).join('')}</select></div>`;
+  }
+  h += `<div class="przyciski" style="margin:12px 0 0"><button class="przycisk" data-akcja="zatwierdz-przeglad">Zatwierdź</button>
+    <button class="przycisk drugi" data-akcja="anuluj-przeglad">Anuluj</button></div></section>`;
+  return h + datalistaProduktow();
+}
+
+function kartaZdjec() {
+  const maKlucz = !!localStorage.getItem(KLUCZ_AI);
+  if (rozpoznawanie) return '<section class="karta"><h2>Ze zdjęcia</h2><p class="pusto">Rozpoznaję produkty, to potrwa kilka sekund...</p></section>';
+  return `<section class="karta"><h2>Ze zdjęcia</h2>
+    <div class="przyciski" style="margin:0"><button class="przycisk" data-akcja="zdjecie" data-tryb="lodowka">📷 Lodówka, szafka</button>
+    <button class="przycisk drugi" data-akcja="zdjecie" data-tryb="paragon">🧾 Paragon</button></div>
+    <input type="file" id="plik-zdjecia" accept="image/*" multiple hidden>
+    <p class="podpowiedz">${maKlucz ? 'Możesz wybrać do 4 zdjęć naraz, np. lodówkę i szafkę.' : 'Najpierw wpisz klucz Gemini w ustawieniach (koło zębate).'}</p></section>`;
+}
+
 function widokSpizarnia() {
-  let h = kartaPropozycji();
+  if (przeglad) return widokPrzegladu();
+  let h = kartaZdjec() + kartaPropozycji();
   h += `<section class="karta"><h2>Dodaj produkt</h2>
     <label class="pole"><span>Nazwa</span><input type="text" id="zapas-nazwa" placeholder="np. śmietana" list="produkty"></label>
     <div class="rzad"><label class="pole"><span>Ilość</span><input type="number" id="zapas-ilosc" min="0" step="any"></label>
@@ -410,6 +568,12 @@ function formularzPrzepisu() {
 function widokWiecej() {
   return `<section class="karta"><h2>Rodzina</h2>
     <label class="pole"><span>Liczba osób, dla których gotujecie</span><input type="number" id="osoby" min="1" max="20" value="${stan.osoby}" data-akcja="osoby"></label></section>
+    <section class="karta"><h2>Rozpoznawanie zdjęć (Gemini)</h2>
+    <p class="podpowiedz" style="margin-top:0">Klucz utworzysz na stronie aistudio.google.com/apikey, logując się kontem Google. Zostaje tylko w tym telefonie i nie trafia do kopii danych.</p>
+    <label class="pole"><span>Klucz API</span><input type="password" id="ai-klucz" autocomplete="off" value="${esc(localStorage.getItem(KLUCZ_AI) || '')}"></label>
+    <label class="pole"><span>Model</span><input type="text" id="ai-model" autocapitalize="off" value="${esc(localStorage.getItem(KLUCZ_MODEL) || MODEL_DOMYSLNY)}"></label>
+    <div class="przyciski" style="margin:0"><button class="przycisk" data-akcja="zapisz-ai">Zapisz</button>
+    <button class="przycisk drugi" data-akcja="sprawdz-ai">Sprawdź klucz</button></div></section>
     <section class="karta"><h2>Kopia danych</h2>
     <p class="podpowiedz" style="margin-top:0">Dane są zapisane w tym telefonie. Kopią możesz przenieść je na inny telefon albo zabezpieczyć.</p>
     <div class="przyciski" style="margin:10px 0 0"><button class="przycisk" data-akcja="eksport">Zapisz kopię</button>
@@ -479,6 +643,30 @@ document.addEventListener('click', async zd => {
     dodajZapas(n, j ? ilosc : 0, j, wartosc('zapas-termin'), document.getElementById('zapas-otwarte').checked);
     zapisz(); pokaz(`Dodano: ${n}.`); return;
   }
+  if (a === 'zdjecie') { trybZdjecia = el.dataset.tryb; document.getElementById('plik-zdjecia').click(); return; }
+  if (a === 'zatwierdz-przeglad') { zatwierdzPrzeglad(); return; }
+  if (a === 'anuluj-przeglad') { przeglad = null; rysuj(); return; }
+  if (a === 'zapisz-ai') {
+    const klucz = wartosc('ai-klucz').trim();
+    if (klucz) localStorage.setItem(KLUCZ_AI, klucz); else localStorage.removeItem(KLUCZ_AI);
+    localStorage.setItem(KLUCZ_MODEL, wartosc('ai-model').trim() || MODEL_DOMYSLNY);
+    pokaz(klucz ? 'Klucz zapisany w tym telefonie.' : 'Klucz usunięty z tego telefonu.');
+    return;
+  }
+  if (a === 'sprawdz-ai') {
+    const klucz = wartosc('ai-klucz').trim();
+    const model = wartosc('ai-model').trim() || MODEL_DOMYSLNY;
+    if (!klucz) { pokaz('Wpisz klucz.'); return; }
+    try {
+      const odp = await fetch(API_GEMINI + encodeURIComponent(model), { headers: { 'x-goog-api-key': klucz } });
+      const dane = await odp.json();
+      if (!odp.ok) throw new Error(dane.error?.message || `HTTP ${odp.status}`);
+      localStorage.setItem(KLUCZ_AI, klucz);
+      localStorage.setItem(KLUCZ_MODEL, model);
+      pokaz(`Klucz działa i jest zapisany. Model: ${dane.displayName || dane.name}.`);
+    } catch (e) { pokaz('Klucz nie działa: ' + e.message); }
+    return;
+  }
   if (a === 'otworz-zapas') { const z = stan.zapasy.find(x => x.id === id); if (z) { z.otwarte = !z.otwarte; zapisz(); rysuj(); } return; }
   if (a === 'usun-zapas') { stan.zapasy = stan.zapasy.filter(x => x.id !== id); zapisz(); rysuj(); return; }
   if (a === 'filtr') { filtrPrzepisow = el.dataset.k; rysuj(); return; }
@@ -542,6 +730,22 @@ document.addEventListener('change', zd => {
     z.ilosc = Math.max(0, +el.value || 0);
     if (z.ilosc <= 0) stan.zapasy = stan.zapasy.filter(x => x !== z);
     zapisz(); rysuj(); return;
+  }
+  if (a === 'przeglad') {
+    const p = przeglad?.pozycje.find(x => x.id === el.dataset.id);
+    if (!p) return;
+    const pole = el.dataset.pole;
+    if (pole === 'wybrana') p.wybrana = el.checked;
+    else if (pole === 'ilosc') p.ilosc = Math.max(0, +el.value || 0);
+    else if (pole === 'n') p.n = norm(el.value);
+    else p.j = el.value;
+    return;
+  }
+  if (el.id === 'plik-zdjecia' && el.files.length) {
+    const pliki = [...el.files];
+    el.value = '';
+    rozpoznaj(pliki, trybZdjecia);
+    return;
   }
   if (a === 'osoby') { stan.osoby = Math.max(1, Math.round(+el.value || 1)); zapisz(); pokaz(`Ilości liczone są teraz dla ${stan.osoby} os.`); return; }
   if (el.id === 'plik-importu' && el.files[0]) {

@@ -3,7 +3,7 @@
 // Dane użytkownika leżą w localStorage, service worker ich nie dotyka.
 // Przy każdej zmianie plików aplikacji podbij numer WERSJA.
 
-const WERSJA = 'spizarnia-v1';
+const WERSJA = 'spizarnia-v2';
 const PLIKI = [
   './',
   'index.html',
