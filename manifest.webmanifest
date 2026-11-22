@@ -1,0 +1,17 @@
+{
+  "name": "Spiżarnia - plan posiłków i zakupy",
+  "short_name": "Spiżarnia",
+  "description": "Plan posiłków na tydzień, zapasy w domu i lista zakupów dla całej rodziny.",
+  "lang": "pl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f6f3ee",
+  "theme_color": "#2f7d4f",
+  "icons": [
+    { "src": "ikony/ikona-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "ikony/ikona-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "ikony/ikona-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

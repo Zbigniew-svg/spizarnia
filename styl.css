@@ -1,0 +1,191 @@
+/* Spiżarnia - wygląd aplikacji. Układ pod telefon, zakładki na dole ekranu. */
+
+:root {
+  --zielony: #2f7d4f;
+  --zielony-jasny: #e3f1e8;
+  --tlo: #f6f3ee;
+  --karta: #ffffff;
+  --tekst: #1f2420;
+  --szary: #6b706c;
+  --linia: #e4e0d8;
+  --pilne: #d9822b;
+  --pilne-jasne: #fdf0e1;
+  --czerwony: #c0392b;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; }
+
+body {
+  font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+  color: var(--tekst);
+  background: var(--tlo);
+  -webkit-tap-highlight-color: transparent;
+  padding-bottom: calc(72px + env(safe-area-inset-bottom));
+}
+
+#naglowek {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
+  background: var(--tlo);
+  border-bottom: 1px solid var(--linia);
+}
+
+#naglowek h1 { margin: 0; font-size: 24px; }
+
+#tresc { max-width: 640px; margin: 0 auto; padding: 12px 12px 24px; }
+
+#zakladki {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 5;
+  display: flex;
+  background: var(--karta);
+  border-top: 1px solid var(--linia);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+#zakladki button {
+  flex: 1;
+  position: relative;
+  border: 0;
+  background: none;
+  padding: 8px 0 10px;
+  font-size: 12px;
+  color: var(--szary);
+}
+
+#zakladki button span { display: block; font-size: 22px; margin-bottom: 2px; }
+#zakladki button.aktywna { color: var(--zielony); font-weight: 600; }
+
+#licznik {
+  position: absolute;
+  top: 4px;
+  left: 55%;
+  min-width: 18px;
+  padding: 1px 5px;
+  border-radius: 9px;
+  background: var(--czerwony);
+  color: #fff;
+  font-size: 11px;
+}
+
+.karta {
+  background: var(--karta);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.karta h2 { margin: 0 0 8px; font-size: 17px; }
+.karta.pilna { background: var(--pilne-jasne); border: 1px solid #f3d3ad; }
+
+.dzien-dzis h2 { color: var(--zielony); }
+
+.posilek {
+  display: grid;
+  grid-template-columns: 84px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-top: 1px solid var(--linia);
+}
+
+.posilek:first-of-type { border-top: 0; }
+.posilek .nazwa-posilku { color: var(--szary); font-size: 14px; }
+.posilek.zrobiony select { text-decoration: line-through; color: var(--szary); }
+
+select, input, textarea, button { font: inherit; }
+
+select, input[type=text], input[type=number], input[type=date], textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--linia);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--tekst);
+  min-width: 0;
+}
+
+textarea { min-height: 140px; resize: vertical; }
+
+button.przycisk {
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: var(--zielony);
+  color: #fff;
+  font-weight: 600;
+}
+
+button.przycisk.drugi { background: var(--zielony-jasny); color: var(--zielony); }
+button.przycisk.maly { padding: 6px 10px; font-size: 14px; }
+button.przycisk.usun { background: #f6dedb; color: var(--czerwony); }
+button.przycisk:disabled { opacity: 0.4; }
+
+button.ikona { border: 0; background: none; font-size: 22px; padding: 4px 6px; }
+
+.rzad { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.rzad > * { flex: 1; }
+.rzad > .waski { flex: 0 0 auto; }
+
+.przyciski { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.przyciski .przycisk { flex: 1; }
+
+.pozycja {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--linia);
+}
+
+.pozycja:first-child,
+.podpowiedz + .pozycja,
+h2 + .pozycja { border-top: 0; }
+.pozycja .opis { flex: 1; min-width: 0; }
+.pozycja .opis small { display: block; color: var(--szary); font-size: 13px; overflow: hidden; text-overflow: ellipsis; }
+.pozycja input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--zielony); }
+.pozycja.odhaczona .opis { text-decoration: line-through; color: var(--szary); }
+.pozycja input[type=number] { width: 78px; flex: 0 0 auto; }
+.ilosc { white-space: nowrap; font-weight: 600; }
+
+.znacznik {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 8px;
+  font-size: 12px;
+  background: var(--zielony-jasny);
+  color: var(--zielony);
+  margin-right: 4px;
+}
+
+.znacznik.pilny { background: var(--pilne-jasne); color: var(--pilne); }
+.znacznik.po-terminie { background: #f6dedb; color: var(--czerwony); }
+
+.pusto { color: var(--szary); text-align: center; padding: 18px 8px; }
+.podpowiedz { color: var(--szary); font-size: 13px; margin: 6px 0 0; }
+
+label.pole { display: block; margin-bottom: 10px; }
+label.pole > span { display: block; font-size: 13px; color: var(--szary); margin-bottom: 4px; }
+
+.filtry { display: flex; gap: 6px; margin-bottom: 12px; overflow-x: auto; }
+.filtry button {
+  border: 1px solid var(--linia);
+  background: var(--karta);
+  border-radius: 16px;
+  padding: 6px 12px;
+  white-space: nowrap;
+}
+.filtry button.aktywna { background: var(--zielony); color: #fff; border-color: var(--zielony); }
+
+.przepis-wiersz { cursor: pointer; }
+.zrodlo { font-size: 12px; color: var(--szary); }

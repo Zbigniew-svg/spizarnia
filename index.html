@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Spiżarnia</title>
+  <meta name="description" content="Plan posiłków na tydzień, zapasy w domu i lista zakupów dla całej rodziny.">
+  <meta name="theme-color" content="#2f7d4f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Spiżarnia">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="ikony/ikona-192.png">
+  <link rel="apple-touch-icon" href="ikony/apple-touch-icon.png">
+  <link rel="stylesheet" href="styl.css">
+</head>
+<body>
+  <header id="naglowek">
+    <h1 id="tytul">Plan</h1>
+    <button id="ustawienia" class="ikona" data-akcja="widok" data-widok="wiecej" aria-label="Ustawienia">⚙️</button>
+  </header>
+
+  <main id="tresc"></main>
+
+  <nav id="zakladki">
+    <button data-akcja="widok" data-widok="plan"><span>📅</span>Plan</button>
+    <button data-akcja="widok" data-widok="zakupy"><span>🛒</span>Zakupy<b id="licznik" hidden></b></button>
+    <button data-akcja="widok" data-widok="spizarnia"><span>🥫</span>Spiżarnia</button>
+    <button data-akcja="widok" data-widok="przepisy"><span>📖</span>Przepisy</button>
+  </nav>
+
+  <script src="app.js"></script>
+</body>
+</html>
